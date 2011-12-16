@@ -22,7 +22,8 @@ for line in sys.stdin:
 		try:
 			j = json.loads(line)
 			for (d, i) in query:
-				j = j[d]
+				if d:
+					j = j[d]
 				if i is not None:
 					j = j[i]
 			print json.dumps(j),
