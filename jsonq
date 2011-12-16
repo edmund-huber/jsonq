@@ -1,0 +1,31 @@
+#!/usr/bin/python
+
+import json
+import re
+import sys
+
+queries = []
+for query_s in sys.argv[1:]:
+	query = []
+	for q in query_s.split('.'):
+		m = re.search('^(.*)\[([0-9]+)\]$', q)
+		if m:
+			q = m.group(1)
+			i = int(m.group(2))
+		else:
+			i = None
+		query.append((q, i))
+	queries.append(query)
+
+for line in sys.stdin:
+	for query in queries:
+		try:
+			j = json.loads(line)
+			for (d, i) in query:
+				j = j[d]
+				if i is not None:
+					j = j[i]
+			print json.dumps(j),
+		except:
+			print 'null',
+	print
