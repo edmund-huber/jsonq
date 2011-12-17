@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Check out the README:
+# https://github.com/edmund-huber/jsonq/blob/master/README.md
+
 import json
 from optparse import OptionParser
 import re
@@ -7,6 +10,7 @@ import sys
 
 parser = OptionParser()
 parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true')
+parser.add_option('-s', '--str', dest='str', default=False, action='store_true')
 options, args = parser.parse_args()
 
 queries = []
@@ -59,7 +63,11 @@ for line in sys.stdin:
             print 'null',
         else:
             if options.filter:
-                print json.dumps(j_root),
+                to_print = j_root
             else:
-                print json.dumps(j),
+                to_print = j
+            if options.str:
+                print str(to_print),
+            else:
+                print json.dumps(to_print),
     print

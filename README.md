@@ -36,3 +36,12 @@ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .
 ````
 
 {"grr": {"hello": [6]}}
+
+Use --str to coerce the result to a string instead of dumping JSON
+------------------------------------------------------------------
+
+````bash
+echo '{"snarf": "narf zoop"}' | ./jsonq .snarf -s
+````
+
+narf zoop
