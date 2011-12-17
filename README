@@ -1,7 +1,0 @@
-> echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | jsonq snafu[0].zzz snafu[1].aaa snafu[1].aza
-
-6 5 null
-
-> echo '[{"derp": [1, 2, 3]}]' | ../jsonq/jsonq [0].derp[1]
-
-2

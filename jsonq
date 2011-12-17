@@ -1,32 +1,65 @@
 #!/usr/bin/python
 
 import json
+from optparse import OptionParser
 import re
 import sys
 
+parser = OptionParser()
+parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true')
+options, args = parser.parse_args()
+
 queries = []
-for query_s in sys.argv[1:]:
-	query = []
-	for q in query_s.split('.'):
-		m = re.search('^(.*)\[([0-9]+)\]$', q)
-		if m:
-			q = m.group(1)
-			i = int(m.group(2))
-		else:
-			i = None
-		query.append((q, i))
-	queries.append(query)
+for query_s in args:
+    original_query_s = query_s
+    query = []
+    while True:
+        m = re.match(r'((?P<select>\.\w+)|(?P<index>\[\d+\]))', query_s)
+        if m:
+            query_s = query_s[len(m.group(0)):]
+            if m.group('select'):
+                q = m.group('select')[1:]
+                i = None
+            elif m.group('index'):
+                q = None
+                i = int(m.group('index')[1:-1])
+            else:
+                assert False
+            query.append((q, i))
+        elif query_s == '':
+            break
+        else:
+            print 'could not parse the query "%s"' % original_query_s
+            sys.exit(1)
+    queries.append(query)
 
 for line in sys.stdin:
-	for query in queries:
-		try:
-			j = json.loads(line)
-			for (d, i) in query:
-				if d:
-					j = j[d]
-				if i is not None:
-					j = j[i]
-			print json.dumps(j),
-		except:
-			print 'null',
-	print
+    for query in queries:
+        j = json.loads(line)
+        j_root = j
+        try:
+            for s, i in query:
+                if s is not None and i is None:
+                    if options.filter:
+                        for k in j.keys():
+                            if k != s:
+                                del j[k]
+                    j = j[s]
+                elif s is None and i is not None:
+                    if options.filter:
+                        j.append(j[i])
+			for _ in range(len(j) - 1):
+                            j.pop(0)
+                        j = j[0]
+                    else:
+                        j = j[i]
+                else:
+                    assert False
+        except KeyError:
+            print 'null',
+        else:
+            if options.filter:
+                print json.dumps(j_root),
+            else:
+                print json.dumps(j),
+    print
