@@ -3,10 +3,15 @@
 # Check out the README:
 # https://github.com/edmund-huber/jsonq/blob/master/README.md
 
-import json
 from optparse import OptionParser
 import re
 import sys
+
+try:
+    # simplejson is typically faster than standard-library json
+    import simplejson as json
+except ImportError:
+    import json
 
 parser = OptionParser()
 parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true')
