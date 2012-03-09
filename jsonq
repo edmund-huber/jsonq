@@ -14,8 +14,8 @@ except ImportError:
     import json
 
 parser = OptionParser()
-parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true')
-parser.add_option('-i', '--find', dest='find', default=False, action='store_true')
+parser.add_option('-f', '--find', dest='find', default=False, action='store_true')
+parser.add_option('-i', '--filter', dest='filter', default=False, action='store_true')
 parser.add_option('-s', '--str', dest='str', default=False, action='store_true')
 options, args = parser.parse_args()
 
