@@ -6,7 +6,6 @@
 from optparse import OptionParser
 import re
 import sys
-import termcolor
 
 try:
     # simplejson is typically faster than standard-library json
