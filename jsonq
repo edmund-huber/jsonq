@@ -6,6 +6,7 @@
 from optparse import OptionParser
 import re
 import sys
+import termcolor
 
 try:
     # simplejson is typically faster than standard-library json
@@ -15,64 +16,95 @@ except ImportError:
 
 parser = OptionParser()
 parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true')
+parser.add_option('-i', '--find', dest='find', default=False, action='store_true')
 parser.add_option('-s', '--str', dest='str', default=False, action='store_true')
 options, args = parser.parse_args()
 
-queries = []
-for query_s in args:
-    original_query_s = query_s
-    query = []
-    while True:
-        m = re.match(r'((?P<select>\.\w+)|(?P<index>\[\d+\]))', query_s)
-        if m:
-            query_s = query_s[len(m.group(0)):]
-            if m.group('select'):
-                q = m.group('select')[1:]
-                i = None
-            elif m.group('index'):
-                q = None
-                i = int(m.group('index')[1:-1])
-            else:
-                assert False
-            query.append((q, i))
-        elif query_s == '':
-            break
-        else:
-            print 'could not parse the query "%s"' % original_query_s
-            sys.exit(1)
-    queries.append(query)
+if options.find:
 
-for line in sys.stdin:
-    for query in queries:
+    # build a query as we go down into the JSON, if we find something
+    # that matches put said query into the return list.
+    def find_matches(j, subs, query):
+        def match(s):
+            if subs in str(s):
+                return [(query, j)]
+            else:
+                return []
+        if type(j) == list:
+            return reduce(lambda l, i_e: l + find_matches(i_e[1], subs, query + '[' + str(i_e[0]) + ']'), enumerate(j), [])
+        elif type(j) == dict:
+            return reduce(lambda l, k_v: l + match(k_v[0]) + find_matches(k_v[1], subs, query + '.' + k_v[0]), j.items(), [])
+        else:
+            return match(j)
+
+    # report on which queries to use to find things.
+    for line in sys.stdin:
         j = json.loads(line)
-        j_root = j
-        try:
-            for s, i in query:
-                if s is not None and i is None:
-                    if options.filter:
-                        for k in j.keys():
-                            if k != s:
-                                del j[k]
-                    j = j[s]
-                elif s is None and i is not None:
-                    if options.filter:
-                        j.append(j[i])
-			for _ in range(len(j) - 1):
-                            j.pop(0)
-                        j = j[0]
-                    else:
-                        j = j[i]
+        print 'for the input:  %s' % json.dumps(j)
+        for subs in args:
+            for query, result in find_matches(j, subs, ''):
+                print 'using query "%s", jsonq would find:  %s' % (query, result)
+
+else:
+    # parse the given queries. Each parsed query is a list of
+    # tuples. The first element of each tuple, if not None, is a
+    # dictionary key. The second element " " " ", is an array index.
+    queries = []
+    for query_s in args:
+        original_query_s = query_s
+        query = []
+        while True:
+            m = re.match(r'((?P<select>\.\w+)|(?P<index>\[\d+\]))', query_s)
+            if m:
+                query_s = query_s[len(m.group(0)):]
+                if m.group('select'):
+                    q = m.group('select')[1:]
+                    i = None
+                elif m.group('index'):
+                    q = None
+                    i = int(m.group('index')[1:-1])
                 else:
                     assert False
-        except KeyError:
-            print 'null',
-        else:
-            if options.filter:
-                to_print = j_root
+                query.append((q, i))
+            elif query_s == '':
+                break
             else:
-                to_print = j
-            if options.str:
-                print str(to_print),
+                print 'could not parse the query "%s"' % original_query_s
+                sys.exit(1)
+        queries.append(query)
+
+    # this is where things happen
+    for line in sys.stdin:
+        for query in queries:
+            j = json.loads(line)
+            j_root = j
+            try:
+                for s, i in query:
+                    if s is not None and i is None:
+                        if options.filter:
+                            for k in j.keys():
+                                if k != s:
+                                    del j[k]
+                        j = j[s]
+                    elif s is None and i is not None:
+                        if options.filter:
+                            j.append(j[i])
+                            for _ in range(len(j) - 1):
+                                j.pop(0)
+                            j = j[0]
+                        else:
+                            j = j[i]
+                    else:
+                        assert False
+            except KeyError:
+                print 'null',
             else:
-                print json.dumps(to_print),
-    print
+                if options.filter:
+                    to_print = j_root
+                else:
+                    to_print = j
+                if options.str:
+                    print str(to_print),
+                else:
+                    print json.dumps(to_print),
+        print
