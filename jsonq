@@ -13,13 +13,8 @@ try:
 except ImportError:
     import json
 
-parser = OptionParser()
-parser.add_option('-f', '--find', dest='find', default=False, action='store_true')
-parser.add_option('-i', '--filter', dest='filter', default=False, action='store_true')
-parser.add_option('-s', '--str', dest='str', default=False, action='store_true')
-options, args = parser.parse_args()
-
-if options.find:
+def find(args):
+    """Find candidate queries that would match elements in the data on stdin."""
 
     # build a query as we go down into the JSON, if we find something
     # that matches put said query into the return list.
@@ -44,16 +39,21 @@ if options.find:
             for query, result in find_matches(j, subs, ''):
                 print 'using query "%s", jsonq would find:  %s' % (query, result)
 
-else:
+def parse_queries(query_strs):
+    """Convert `query_str` (the command-line arguments) to parsed queries."""
+
     # parse the given queries. Each parsed query is a list of
     # tuples. The first element of each tuple, if not None, is a
     # dictionary key. The second element " " " ", is an array index.
     queries = []
-    for query_s in args:
+    for query_s in query_strs:
         original_query_s = query_s
         query = []
         while True:
-            m = re.match(r'((?P<select>\.\w+)|(?P<index>\[\d+\]))', query_s)
+            # dictionary keys may contain anything except ., [, or ], so [^.\[\]]+
+            # maybe allow these chars also when backslash-escaped? meh.
+            # array indices are digits, i.e., \d+
+            m = re.match(r'((?P<select>\.[^.\[\]]+)|(?P<index>\[\d+\]))', query_s)
             if m:
                 query_s = query_s[len(m.group(0)):]
                 if m.group('select'):
@@ -68,25 +68,34 @@ else:
             elif query_s == '':
                 break
             else:
-                print 'could not parse the query "%s"' % original_query_s
-                sys.exit(1)
+                raise ValueError("Could not parse the query", original_query_s)
         queries.append(query)
+    return queries
 
-    # this is where things happen
+def query(queries, filter_data=False, strify=False):
+    """Run `queries` against the data on stdin."""
+
     for line in sys.stdin:
+        if not filter_data:
+            j_orig = json.loads(line)
+
         for query in queries:
-            j = json.loads(line)
+            # reparse the data if we are destructively modifying it:
+            if filter_data:
+                j = json.loads(line)
+            else:
+                j = j_orig
             j_root = j
             try:
                 for s, i in query:
                     if s is not None and i is None:
-                        if options.filter:
+                        if filter_data:
                             for k in j.keys():
                                 if k != s:
                                     del j[k]
                         j = j[s]
                     elif s is None and i is not None:
-                        if options.filter:
+                        if filter_data:
                             j.append(j[i])
                             for _ in range(len(j) - 1):
                                 j.pop(0)
@@ -98,12 +107,26 @@ else:
             except KeyError:
                 print 'null',
             else:
-                if options.filter:
-                    to_print = j_root
-                else:
-                    to_print = j
-                if options.str:
-                    print str(to_print),
-                else:
-                    print json.dumps(to_print),
+                obj_to_print = j_root if filter_data else j
+                str_to_print = str(obj_to_print) if strify else json.dumps(obj_to_print)
+                print str_to_print,
         print
+
+def main():
+    parser = OptionParser(usage="%prog [options] queries")
+    parser.add_option('-f', '--find', dest='find', default=False, action='store_true',
+            help="Emit all queries that would match any of the arguments.")
+    parser.add_option('-i', '--filter', dest='filter', default=False, action='store_true',
+            help="Show the original object filtered by the query, not just the result.")
+    parser.add_option('-s', '--str', dest='str', default=False, action='store_true',
+            help="Coerce output with str() instead of dumping JSON.")
+    options, args = parser.parse_args()
+
+    if options.find:
+        return find(args)
+    else:
+        queries = parse_queries(args)
+        return query(queries, filter_data=options.filter, strify=options.str)
+
+if __name__ == '__main__':
+    sys.exit(main())
