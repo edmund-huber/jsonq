@@ -13,10 +13,10 @@ try:
 except ImportError:
     import json
 
-class FilteredObject(object):
+class FilteredJSONObject(object):
     """Represents an incrementally built query-filtered JSON object.
 
-    >>> f = FilteredObject()
+    >>> f = FilteredJSONObject()
     >>> f.add_key('narf'); f.add_array(); f.add_key('zoop'); f.add_val(1);
     >>> f.get_result()
     {'narf': [{'zoop': 1}]}
@@ -39,24 +39,22 @@ class FilteredObject(object):
         if self.result is None:
             self.result = self.tip = {}
             self.last_subscript = key
-            return
-
-        new_tip = {}
-        self.tip[self.last_subscript] = new_tip
-        self.tip = new_tip
-        self.last_subscript = key
+        else:
+            new_tip = {}
+            self.tip[self.last_subscript] = new_tip
+            self.tip = new_tip
+            self.last_subscript = key
 
     def add_array(self):
         """Set the current object tip to be an array of length 1."""
         if self.result is None:
             self.result = self.tip = [None]
             self.last_subscript = 0
-            return
-
-        new_tip = [None]
-        self.tip[self.last_subscript] = new_tip
-        self.tip = new_tip
-        self.last_subscript = 0
+        else:
+            new_tip = [None]
+            self.tip[self.last_subscript] = new_tip
+            self.tip = new_tip
+            self.last_subscript = 0
 
     def add_val(self, val):
         """Set the current object tip to be an arbitrary value."""
@@ -132,21 +130,25 @@ def query(queries, filter_data=False, strify=False):
 
         for query in queries:
             tip = json_obj
-            if filter_data: filtered_obj = FilteredObject()
+            if filter_data:
+                filtered_obj = FilteredJSONObject()
 
             try:
                 for s, i in query:
                     if s is not None and i is None:
                         # this query item is an dictionary key:
-                        if filter_data: filtered_obj.add_key(s)
+                        if filter_data:
+                            filtered_obj.add_key(s)
                         tip = tip[s]
                     elif s is None and i is not None:
                         # this query item is an array subscript
-                        if filter_data: filtered_obj.add_array()
+                        if filter_data:
+                            filtered_obj.add_array()
                         tip = tip[i]
                     else:
                         assert False
-                if filter_data: filtered_obj.add_val(tip)
+                if filter_data:
+                    filtered_obj.add_val(tip)
             except KeyError:
                 print 'null',
             else:
