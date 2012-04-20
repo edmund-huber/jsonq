@@ -13,6 +13,58 @@ try:
 except ImportError:
     import json
 
+class FilteredObject(object):
+    """Represents an incrementally built query-filtered JSON object.
+
+    >>> f = FilteredObject()
+    >>> f.add_key('narf'); f.add_array(); f.add_key('zoop'); f.add_val(1);
+    >>> f.get_result()
+    {'narf': [{'zoop': 1}]}
+    """
+
+    def __init__(self):
+        # this is the object we're building
+        self.result = None
+
+        # next place to assign is always self.tip[self.last_subscript]
+        self.tip = None
+        self.last_subscript = None
+
+    def get_result(self):
+        """Get the finished object."""
+        return self.result
+
+    def add_key(self, key):
+        """Set the current object tip to be a dictionary key."""
+        if self.result is None:
+            self.result = self.tip = {}
+            self.last_subscript = key
+            return
+
+        new_tip = {}
+        self.tip[self.last_subscript] = new_tip
+        self.tip = new_tip
+        self.last_subscript = key
+
+    def add_array(self):
+        """Set the current object tip to be an array of length 1."""
+        if self.result is None:
+            self.result = self.tip = [None]
+            self.last_subscript = 0
+            return
+
+        new_tip = [None]
+        self.tip[self.last_subscript] = new_tip
+        self.tip = new_tip
+        self.last_subscript = 0
+
+    def add_val(self, val):
+        """Set the current object tip to be an arbitrary value."""
+        if self.result is None:
+            self.result = val
+        else:
+            self.tip[self.last_subscript] = val
+
 def find(args):
     """Find candidate queries that would match elements in the data on stdin."""
 
@@ -76,38 +128,29 @@ def query(queries, filter_data=False, strify=False):
     """Run `queries` against the data on stdin."""
 
     for line in sys.stdin:
-        if not filter_data:
-            j_orig = json.loads(line)
+        json_obj = json.loads(line)
 
         for query in queries:
-            # reparse the data if we are destructively modifying it:
-            if filter_data:
-                j = json.loads(line)
-            else:
-                j = j_orig
-            j_root = j
+            tip = json_obj
+            if filter_data: filtered_obj = FilteredObject()
+
             try:
                 for s, i in query:
                     if s is not None and i is None:
-                        if filter_data:
-                            for k in j.keys():
-                                if k != s:
-                                    del j[k]
-                        j = j[s]
+                        # this query item is an dictionary key:
+                        if filter_data: filtered_obj.add_key(s)
+                        tip = tip[s]
                     elif s is None and i is not None:
-                        if filter_data:
-                            j.append(j[i])
-                            for _ in range(len(j) - 1):
-                                j.pop(0)
-                            j = j[0]
-                        else:
-                            j = j[i]
+                        # this query item is an array subscript
+                        if filter_data: filtered_obj.add_array()
+                        tip = tip[i]
                     else:
                         assert False
+                if filter_data: filtered_obj.add_val(tip)
             except KeyError:
                 print 'null',
             else:
-                obj_to_print = j_root if filter_data else j
+                obj_to_print = filtered_obj.get_result() if filter_data else tip
                 str_to_print = str(obj_to_print) if strify else json.dumps(obj_to_print)
                 print str_to_print,
         print
