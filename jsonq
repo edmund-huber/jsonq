@@ -3,6 +3,7 @@
 # Check out the README:
 # https://github.com/edmund-huber/jsonq/blob/master/README.md
 
+import copy
 from optparse import OptionParser
 import re
 import sys
@@ -17,7 +18,7 @@ class FilteredJSONObject(object):
     """Represents an incrementally built query-filtered JSON object.
 
     >>> f = FilteredJSONObject()
-    >>> f.add_key('narf'); f.add_array(); f.add_key('zoop'); f.add_val(1);
+    >>> f.add_map('narf'); f.add_list(); f.add_map('zoop'); f.add_val(1);
     >>> f.get_result()
     {'narf': [{'zoop': 1}]}
     """
@@ -30,11 +31,7 @@ class FilteredJSONObject(object):
         self.tip = None
         self.last_subscript = None
 
-    def get_result(self):
-        """Get the finished object."""
-        return self.result
-
-    def add_key(self, key):
+    def add_map(self, key):
         """Set the current object tip to be a dictionary key."""
         if self.result is None:
             self.result = self.tip = {}
@@ -44,8 +41,9 @@ class FilteredJSONObject(object):
             self.tip[self.last_subscript] = new_tip
             self.tip = new_tip
             self.last_subscript = key
+        return self
 
-    def add_array(self):
+    def add_list(self):
         """Set the current object tip to be an array of length 1."""
         if self.result is None:
             self.result = self.tip = [None]
@@ -55,39 +53,16 @@ class FilteredJSONObject(object):
             self.tip[self.last_subscript] = new_tip
             self.tip = new_tip
             self.last_subscript = 0
+        return self
 
-    def add_val(self, val):
-        """Set the current object tip to be an arbitrary value."""
+    def finish(self, val):
+        """Set the current object tip to be an arbitrary value and
+        return the skeleton that we traversed. """
         if self.result is None:
             self.result = val
         else:
             self.tip[self.last_subscript] = val
-
-def find(args):
-    """Find candidate queries that would match elements in the data on stdin."""
-
-    # build a query as we go down into the JSON, if we find something
-    # that matches put said query into the return list.
-    def find_matches(j, subs, query):
-        def match(s):
-            if subs in str(s):
-                return [(query, j)]
-            else:
-                return []
-        if type(j) == list:
-            return reduce(lambda l, i_e: l + find_matches(i_e[1], subs, query + '[' + str(i_e[0]) + ']'), enumerate(j), [])
-        elif type(j) == dict:
-            return reduce(lambda l, k_v: l + match(k_v[0]) + find_matches(k_v[1], subs, query + '.' + k_v[0]), j.items(), [])
-        else:
-            return match(j)
-
-    # report on which queries to use to find things.
-    for line in sys.stdin:
-        j = json.loads(line)
-        print 'for the input:  %s' % json.dumps(j)
-        for subs in args:
-            for query, result in find_matches(j, subs, ''):
-                print 'using query "%s", jsonq would find:  %s' % (query, result)
+        return self.result
 
 def parse_queries(query_strs):
     """Convert `query_str` (the command-line arguments) to parsed queries."""
@@ -103,7 +78,7 @@ def parse_queries(query_strs):
             # dictionary keys may contain anything except ., [, or ], so [^.\[\]]+
             # maybe allow these chars also when backslash-escaped? meh.
             # array indices are digits, i.e., \d+
-            m = re.match(r'((?P<select>\.[^.\[\]]+)|(?P<index>\[\d+\]))', query_s)
+            m = re.match(r'((?P<select>\.[^.\[\]]+)|(?P<index>\[\d+\])|(?P<star>\[\*\]))', query_s)
             if m:
                 query_s = query_s[len(m.group(0)):]
                 if m.group('select'):
@@ -112,6 +87,9 @@ def parse_queries(query_strs):
                 elif m.group('index'):
                     q = None
                     i = int(m.group('index')[1:-1])
+                elif m.group('star'):
+                    q = None
+                    i = True
                 else:
                     assert False
                 query.append((q, i))
@@ -122,56 +100,60 @@ def parse_queries(query_strs):
         queries.append(query)
     return queries
 
-def query(queries, filter_data=False, strify=False):
+def query(queries, filter_data=False):
     """Run `queries` against the data on stdin."""
+
+    def q(query, tip, filtered):
+        if len(query) > 0:
+            s, i = query[0]
+            if s is not None and i is None:
+                # this query item is an dictionary key:
+                if type(tip) == dict:
+                    if s in tip:
+                        return q(query[1:], tip[s], copy.deepcopy(filtered).add_map(s))
+                    else:
+                        return []
+                else:
+                    return []
+            elif s is None and i is not None:
+                if type(tip) == list:
+                    if i is True:
+                        # we're dealing with a 'return all values' query, .*
+                        matches = []
+                        for i in range(len(tip)):
+                            matches.extend(q(query[1:], tip[i], copy.deepcopy(filtered).add_list()))
+                        return matches
+                    else:
+                        # this query item is an array subscript
+                        if len(tip) > i:
+                            return q(query[1:], tip[i], copy.deepcopy(filtered).add_list())
+                        else:
+                            return []
+                else:
+                    return []
+            else:
+                assert False
+        else:
+            return [(tip, filtered.finish(tip))]
 
     for line in sys.stdin:
         json_obj = json.loads(line)
-
         for query in queries:
-            tip = json_obj
-            if filter_data:
-                filtered_obj = FilteredJSONObject()
-
-            try:
-                for s, i in query:
-                    if s is not None and i is None:
-                        # this query item is an dictionary key:
-                        if filter_data:
-                            filtered_obj.add_key(s)
-                        tip = tip[s]
-                    elif s is None and i is not None:
-                        # this query item is an array subscript
-                        if filter_data:
-                            filtered_obj.add_array()
-                        tip = tip[i]
-                    else:
-                        assert False
+            for value, filtered in q(query, copy.deepcopy(json_obj), FilteredJSONObject()):
                 if filter_data:
-                    filtered_obj.add_val(tip)
-            except KeyError:
-                print 'null',
-            else:
-                obj_to_print = filtered_obj.get_result() if filter_data else tip
-                str_to_print = str(obj_to_print) if strify else json.dumps(obj_to_print)
-                print str_to_print,
+                    print json.dumps(filtered),
+                else:
+                    print json.dumps(value),
         print
 
 def main():
     parser = OptionParser(usage="%prog [options] queries")
-    parser.add_option('-f', '--find', dest='find', default=False, action='store_true',
-            help="Emit all queries that would match any of the arguments.")
     parser.add_option('-i', '--filter', dest='filter', default=False, action='store_true',
             help="Show the original object filtered by the query, not just the result.")
-    parser.add_option('-s', '--str', dest='str', default=False, action='store_true',
-            help="Coerce output with str() instead of dumping JSON.")
     options, args = parser.parse_args()
 
-    if options.find:
-        return find(args)
-    else:
-        queries = parse_queries(args)
-        return query(queries, filter_data=options.filter, strify=options.str)
+    queries = parse_queries(args)
+    return query(queries, filter_data=options.filter)
 
 if __name__ == '__main__':
     sys.exit(main())

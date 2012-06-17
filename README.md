@@ -24,16 +24,17 @@ $ ./jsonq .name.first < info | tail -1
 The JSON query language is pretty simple. Here is the grammar:
 
 ````
-query = (dict_selector | list_selector) (query | "")
+query = (dict_selector | list_selector | every_in_list_selector) (query | "")
 dict_selector = "." /\w+/
 list_selector = "[" /\d+/ "]"
+every_in_list_selector = "[*]"
 ````
 
 Here are a few more examples.
 
 ````bash
 $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .snafu[0].zzz .snafu[1].aaa .snafu[1].aza
-6 5 null
+6 5
 ````
 
 ````bash
@@ -46,22 +47,21 @@ $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq
 [5, 6]
 ````
 
-When you don't know quote where to find what you want, use -f/--find,
-which makes jsonq emit all queries which would find any of the
-substrings which you have supplied. For example, suppose we're looking
-for "5", or "derp", we just don't know.
+Here are some examples using the every-in-list operator [*]:
 
 ````bash
-$ echo '{"herp": {"derp": [5]}, "derp": [1,2,3]}' | ./jsonq -f 5 derp
-for the input:  {"herp": {"derp": [5]}, "derp": [1, 2, 3]}
-using query ".herp.derp[0]", jsonq would find:  5
-using query ".herp", jsonq would find:  {'derp': [5]}
-using query "", jsonq would find:  {'herp': {'derp': [5]}, 'derp': [1, 2, 3]}
+$ echo '["Jackie", "Jason", "John"]' | ./jsonq "[*]"
+"Jackie" "Jason" "John"
 ````
 
-Now, suppose we don't just want to see the result of the query, we
-also want to see what was the path of selections that the query
-took. Use -i/--filter:
+````bash
+$ echo '[["Aaron", "Amelie"], ["Brian", "Bartholomew"]]' | ./jsonq "[*][*]"
+"Aaron" "Amelie" "Brian" "Bartholomew"
+````
+
+Suppose we don't just want to see the result of the query, we also
+want to see what was the path of selections that the query took. Use
+-i/--filter:
 
 ````bash
 $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello --filter
@@ -76,11 +76,4 @@ $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq
 ````bash
 $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello[1] --filter
 {"grr": {"hello": [6]}}
-````
-
-One last thing. Use -s/--str to coerce the result to a string instead of dumping JSON.
-
-````bash
-$ echo '{"snarf": "narf zoop"}' | ./jsonq .snarf -s
-narf zoop
 ````
