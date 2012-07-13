@@ -61,7 +61,7 @@ $ echo '[["Aaron", "Amelie"], ["Brian", "Bartholomew"]]' | ./jsonq "[*][*]"
 
 Suppose we don't just want to see the result of the query, we also
 want to see what was the path of selections that the query took. Use
--i/--filter:
+-f/--filter:
 
 ````bash
 $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello --filter

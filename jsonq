@@ -100,7 +100,7 @@ def parse_queries(query_strs):
         queries.append(query)
     return queries
 
-def query(queries, filter_data=False):
+def query(queries, filter_data, newlines):
     """Run `queries` against the data on stdin."""
 
     def q(query, tip, filtered):
@@ -141,19 +141,21 @@ def query(queries, filter_data=False):
         for query in queries:
             for value, filtered in q(query, copy.deepcopy(json_obj), FilteredJSONObject()):
                 if filter_data:
-                    print json.dumps(filtered),
+                    print json.dumps(filtered) + ('\n' if newlines else ' '),
                 else:
-                    print json.dumps(value),
+                    print json.dumps(value) + ('\n' if newlines else ' '),
         print
 
 def main():
     parser = OptionParser(usage="%prog [options] queries")
-    parser.add_option('-i', '--filter', dest='filter', default=False, action='store_true',
-            help="Show the original object filtered by the query, not just the result.")
+    parser.add_option('-n', '--newlines', dest='newlines', default=False, action='store_true',
+                      help="Use a newline instead of a space to delimit results.")
+    parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true',
+                      help="Show the original object filtered by the query, not just the result.")
     options, args = parser.parse_args()
 
     queries = parse_queries(args)
-    return query(queries, filter_data=options.filter)
+    return query(queries, options.filter, options.newlines)
 
 if __name__ == '__main__':
     sys.exit(main())
