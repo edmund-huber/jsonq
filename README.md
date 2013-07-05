@@ -1,10 +1,9 @@
 `jsonq` - query line-delimited JSON
 
-Example
-=======
+What is it?
+===========
 
-For example, let's say you have a file with a ton of JSON, one JSON
-structure per line. Each of the JSON looks something like this:
+Suppose you have newline-separated JSON blobs in a file. Filter down this data to what you want!
 
 ````bash
 $ echo '
@@ -23,7 +22,7 @@ $ echo '
 Query language
 ==============
 
-The query language is a simple chain of operator.
+A query is a chain of operators.
 
 For the short of patience, here is the grammar.
 
