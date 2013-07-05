@@ -1,36 +1,102 @@
-Get the information that you want out of JSON.
+`jsonq` - query line-delimited JSON
+
+Example
+=======
 
 For example, let's say you have a file with a ton of JSON, one JSON
 structure per line. Each of the JSON looks something like this:
 
-````javascript
-{
-  "age": 22,
-  "weightLbs": 175,
-  "name": {
-    "first": "John",
-    "last": "Doe"
-  }
-}
-````
-
-You can extract a list of each person's first name using:
-
 ````bash
-$ ./jsonq .name.first < info | tail -1
+$ echo '
+> {
+>   "age": 22,
+>   "weightLbs": 175,
+>   "name": {
+>     "first": "John",
+>     "last": "Doe"
+>   }
+> }
+> ' | ./jsonq .name.first
 "John"
 ````
 
-The JSON query language is pretty simple. Here is the grammar:
+Query language
+==============
+
+The query language is a simple chain of operator.
+
+For the short of patience, here is the grammar.
 
 ````
-query = (dict_selector | list_selector | every_in_list_selector) (query | "")
-dict_selector = "." /\w+/
-list_selector = "[" /\d+/ "]"
-every_in_list_selector = "[*]"
+query = (dict_operator | list_operator | every_in_list_operator) (query | "")
+dict_operator = "." /\w+/
+list_operator = "[" /\d+/ "]"
+every_in_list_operator = "[*]"
 ````
 
-Here are a few more examples.
+The value operator `.`
+----------------------
+
+Given an object, `.key` filters to the value of the `key` given.
+
+````bash
+$ echo '{"key": "value"}' | ./jsonq .key
+"value"
+````
+
+The index operator `[]`
+-----------------------
+
+Given a list, `[index]` filters to the single value at `index`.
+
+````bash
+$ echo '["first"]' | ./jsonq [0]
+"first"
+````
+
+The every-in-list operator `[*]`
+--------------------------------
+
+Given a list, `[*]` unpacks the list.
+
+````bash
+$ echo '[1, 2, 3]' | ./jsonq [*]
+1 2 3
+````
+
+This operator has limited uses. But suppose each blob contains a list of structures that we're trying to boil down.
+
+````bash
+$ echo '[{"name": "jack"}, {"name": "jill"}]' | ./jsonq [*].name
+"jack" "jill"
+````
+
+Useful flags
+============
+
+Suppose we don't just want to see the result of the query, we also
+want to see what was the path of selections that the query took. Use
+`-f` or `--filter`:
+
+````bash
+$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello --filter
+{"grr": {"hello": [5, 6]}}
+````
+
+````bash
+$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello[0] --filter
+{"grr": {"hello": [5]}}
+````
+
+````bash
+$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello[1] --filter
+{"grr": {"hello": [6]}}
+````
+
+More examples
+=============
+
+Just an assortment of examples.
 
 ````bash
 $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .snafu[0].zzz .snafu[1].aaa .snafu[1].aza
@@ -47,33 +113,7 @@ $ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq
 [5, 6]
 ````
 
-Here are some examples using the every-in-list operator [*]:
-
-````bash
-$ echo '["Jackie", "Jason", "John"]' | ./jsonq "[*]"
-"Jackie" "Jason" "John"
-````
-
 ````bash
 $ echo '[["Aaron", "Amelie"], ["Brian", "Bartholomew"]]' | ./jsonq "[*][*]"
 "Aaron" "Amelie" "Brian" "Bartholomew"
-````
-
-Suppose we don't just want to see the result of the query, we also
-want to see what was the path of selections that the query took. Use
--f/--filter:
-
-````bash
-$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello --filter
-{"grr": {"hello": [5, 6]}}
-````
-
-````bash
-$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello[0] --filter
-{"grr": {"hello": [5]}}
-````
-
-````bash
-$ echo '{"grr": {"hello": [5, 6]}, "snafu": [{"zzz": 6}, {"aaa": 5}]}' | ./jsonq .grr.hello[1] --filter
-{"grr": {"hello": [6]}}
 ````
