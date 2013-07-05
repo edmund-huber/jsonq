@@ -1,4 +1,4 @@
-`jsonq` - query line-delimited JSON
+`jsonq` - a concise, self-contained library to query line-delimited JSON
 
 What is it?
 ===========
@@ -72,6 +72,17 @@ $ echo '[{"name": "jack"}, {"name": "jill"}]' | ./jsonq [*].name
 
 Useful flags
 ============
+
+You can choose which delimiter to use for multiple results of the same blob with `-d` or `--delimiter`:
+
+````bash
+$ echo '[1, 2, 3]' | ./jsonq [*] --delimiter="\n"
+1
+2
+3
+````
+
+This is currently only useful for the `[*]` operator.
 
 Suppose we don't just want to see the result of the query, we also
 want to see what was the path of selections that the query took. Use

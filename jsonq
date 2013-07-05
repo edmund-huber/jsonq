@@ -100,7 +100,7 @@ def parse_queries(query_strs):
         queries.append(query)
     return queries
 
-def query(queries, filter_data, newlines):
+def query(queries, do_filter, delimiter):
     """Run `queries` against the data on stdin."""
 
     def q(query, tip, filtered):
@@ -118,7 +118,7 @@ def query(queries, filter_data, newlines):
             elif s is None and i is not None:
                 if type(tip) == list:
                     if i is True:
-                        # we're dealing with a 'return all values' query, .*
+                        # we're dealing with an unpack query, [*]
                         matches = []
                         for i in range(len(tip)):
                             matches.extend(q(query[1:], tip[i], copy.deepcopy(filtered).add_list()))
@@ -140,22 +140,22 @@ def query(queries, filter_data, newlines):
         json_obj = json.loads(line)
         for query in queries:
             for value, filtered in q(query, copy.deepcopy(json_obj), FilteredJSONObject()):
-                if filter_data:
-                    print json.dumps(filtered) + ('\n' if newlines else ' '),
+                if do_filter:
+                    sys.stdout.write(json.dumps(filtered) + delimiter)
                 else:
-                    print json.dumps(value) + ('\n' if newlines else ' '),
-        print
+                    sys.stdout.write(json.dumps(value) + delimiter)
+        if delimiter != '\n':
+            print
 
 def main():
     parser = OptionParser(usage="%prog [options] queries")
-    parser.add_option('-n', '--newlines', dest='newlines', default=False, action='store_true',
-                      help="Use a newline instead of a space to delimit results.")
-    parser.add_option('-f', '--filter', dest='filter', default=False, action='store_true',
-                      help="Show the original object filtered by the query, not just the result.")
+    parser.add_option('-f', '--filter', dest='do_filter', default=False, action='store_true',
+                      help='Show the original object filtered by the query, not just the result.')
+    parser.add_option('-d', '--delimiter', dest='delimiter', default=' ', action='store',
+                      help='The string to be printed between results for a single input and query.')
     options, args = parser.parse_args()
-
     queries = parse_queries(args)
-    return query(queries, options.filter, options.newlines)
+    return query(queries, options.do_filter, options.delimiter.decode('string_escape'))
 
 if __name__ == '__main__':
     sys.exit(main())
